@@ -1,0 +1,64 @@
+name: iOS build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Web-часть и проект Xcode
+        run: |
+          npm ci
+          npm run build
+          # SPM тянет нативный код Capacitor не из node_modules, а из отдельного
+          # ionic-team/capacitor-swift-pm без лока версии — уводило JS и нативную
+          # часть в разные версии, и native-bridge.js переставал встраиваться.
+          npx cap add ios --packagemanager CocoaPods
+          npx cap sync ios
+
+      - name: Нативные доработки
+        run: |
+          cp native/AppDelegate.swift ios/App/App/AppDelegate.swift
+          # Приложение стартует через SceneDelegate (в Info.plist есть UIApplicationSceneManifest),
+          # а не через Main.storyboard — тот создаёт rootViewController прямо в коде, в обход
+          # сториборда. Патчить сториборд бесполезно: capacitorDidLoad() у MainViewController
+          # никогда не вызывался, плагин входа не регистрировался.
+          sceneDelegate=ios/App/App/SceneDelegate.swift
+          sed -i '' 's/CAPBridgeViewController()/MainViewController()/' "$sceneDelegate"
+          grep -q 'MainViewController()' "$sceneDelegate"
+          /usr/libexec/PlistBuddy -c 'Add :UIBackgroundModes array' -c 'Add :UIBackgroundModes:0 string audio' ios/App/App/Info.plist
+          # Синхронизация с компьютером по Wi-Fi: iOS спрашивает разрешение на локальную сеть,
+          # а обычный http к ней разрешён только с NSAllowsLocalNetworking.
+          /usr/libexec/PlistBuddy -c 'Add :NSLocalNetworkUsageDescription string Синхронизация с Cloudwave на компьютере в той же сети' ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c 'Add :NSAppTransportSecurity dict' -c 'Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true' ios/App/App/Info.plist
+          # Своя иконка и три запасные для переключения в настройках.
+          rm -rf ios/App/App/Assets.xcassets/AppIcon.appiconset
+          cp -R native/icons/*.appiconset ios/App/App/Assets.xcassets/
+
+      - name: Сборка без подписи (подпишет AltStore)
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES="AppIconDark AppIconLight AppIconNeon" \
+            ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=YES build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry Cloudwave.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cloudwave-ipa
+          path: mobile/ios/App/Cloudwave.ipa
+          retention-days: 14

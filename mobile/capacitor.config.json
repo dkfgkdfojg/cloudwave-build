@@ -1,0 +1,10 @@
+{
+  "appId": "com.cloudwave.player",
+  "appName": "Cloudwave",
+  "webDir": "www",
+  "ios": {
+    "backgroundColor": "#15121c",
+    "contentInset": "never",
+    "webContentsDebuggingEnabled": true
+  }
+}
