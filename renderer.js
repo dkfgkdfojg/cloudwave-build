@@ -647,10 +647,15 @@ function createLocalPlaylist(name) {
 function addToLocalPlaylist(id, track) {
   const playlists = loadLocalPlaylists()
   const playlist = playlists[id]
-  if (!playlist || playlist.trackIds.includes(track.id)) return
+  if (!playlist) return
+  if (playlist.trackIds.includes(track.id)) {
+    toast(`Уже есть в «${playlist.name}»`)
+    return
+  }
   playlist.trackIds.push(track.id)
   playlist.updatedAt = Date.now()
   saveLocalPlaylists(playlists)
+  toast(`Добавлено в «${playlist.name}»`)
 }
 
 function removeFromLocalPlaylist(id, trackId) {
@@ -725,7 +730,8 @@ function openPlaylistDialog(track) {
   pendingTrack = track ?? null
   const local = Object.values(loadLocalPlaylists())
   $('#playlist-picker').innerHTML = [
-    ...ownPlaylists().map(p => `<button class="menu-item" data-add-sc-playlist="${p.id}"><svg aria-hidden="true"><use href="#i-playlist"/></svg>${esc(p.title)} · ${countOf(p.track_count, TRACK_FORMS)}</button>`),
+    // Записывать в SoundCloud получается только из приложения на iPhone: с ПК DataDome отвечает 403.
+    ...(native ? ownPlaylists() : []).map(p => `<button class="menu-item" data-add-sc-playlist="${p.id}"><svg aria-hidden="true"><use href="#i-playlist"/></svg>${esc(p.title)} · ${countOf(p.track_count, TRACK_FORMS)}</button>`),
     ...local.map(p => `<button class="menu-item" data-add-playlist="${p.id}"><svg aria-hidden="true"><use href="#i-playlist"/></svg>${esc(p.name)} · в приложении</button>`),
   ].join('')
   $('#playlist-dialog').querySelector('.eyebrow').textContent = track ? 'Добавить в плейлист' : 'Новый плейлист'
@@ -1712,7 +1718,8 @@ function renderSettings(_arg, mount) {
             <button class="icon-btn" data-delete-playlist="${p.id}" aria-label="Удалить плейлист"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
           </div>`).join('')}
       </div>` : '<p class="sidebar-empty">Пока нет ни одного</p>'}
-      <button class="btn" data-action="createPlaylist" style="margin-top: 12px">Создать плейлист</button>`)}
+      <button class="btn" data-action="createPlaylist" style="margin-top: 12px">Создать плейлист</button>
+      <button class="btn" data-action="importPlaylist" style="margin-top: 12px">Импорт JSON</button>`)}
 
     ${sc.discord ? section('Discord', `
       <form class="setting-row" id="discord-form">
@@ -2116,6 +2123,37 @@ const actions = {
     go('settings', null, false)
   },
   createPlaylist: () => openPlaylistDialog(null),
+  // Формат тот же, что у резервной копии лайков: [{ id, title, artist, url }].
+  importPlaylist() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.onchange = async () => {
+      const file = input.files[0]
+      if (!file) return
+      let items
+      try {
+        items = JSON.parse(await file.text())
+      } catch {
+        toast('Файл не читается как JSON')
+        return
+      }
+      const list = Array.isArray(items) ? items : items?.tracks ?? []
+      const trackIds = [...new Set(list.map(item => Number(item?.id ?? item)).filter(id => Number.isInteger(id) && id > 0))]
+      if (!trackIds.length) {
+        toast('В файле нет id треков SoundCloud')
+        return
+      }
+      const playlists = loadLocalPlaylists()
+      const id = `p${Date.now()}`
+      const name = items.name ?? file.name.replace(/\.json$/i, '')
+      playlists[id] = { id, name, trackIds, updatedAt: Date.now() }
+      saveLocalPlaylists(playlists)
+      toast(`Плейлист «${name}»: ${countOf(trackIds.length, TRACK_FORMS)}`)
+      go('localPlaylist', id)
+    }
+    input.click()
+  },
   async backupLikes() {
     try {
       toast(await exportLikes())
@@ -3243,7 +3281,7 @@ view.addEventListener('submit', async event => {
   }
 })
 
-$('#new-playlist-form').addEventListener('submit', async event => {
+$('#new-playlist-form').addEventListener('submit', event => {
   event.preventDefault()
   const form = event.target
   const name = form.name.value.trim()
@@ -3252,13 +3290,11 @@ $('#new-playlist-form').addEventListener('submit', async event => {
   form.reset()
   pendingTrack = null
   $('#playlist-dialog').close()
-  try {
-    const playlist = await createPlaylist(name, track ? [track.id] : [])
-    toast(track ? `Создан «${name}», трек добавлен` : `Плейлист «${name}» создан`)
-    if (!track) go('playlist', playlist.id)
-  } catch (err) {
-    toast(`Не создался: ${errorText(err)}`)
-  }
+  // Новые плейлисты живут в приложении: так они создаются и на ПК, и на телефоне и ездят между ними синхронизацией.
+  const playlist = createLocalPlaylist(name)
+  if (track) addToLocalPlaylist(playlist.id, track)
+  else go('localPlaylist', playlist.id)
+  refreshSettings()
 })
 
 $('#rename-form').addEventListener('submit', async event => {
@@ -3378,6 +3414,10 @@ $('#open-now').addEventListener('click', () => toggleNow(true))
 $('#now-close').addEventListener('click', () => toggleNow(false))
 $('#like').addEventListener('click', toggleLike)
 $('#now-like').addEventListener('click', toggleLike)
+$('#now-add').addEventListener('click', () => {
+  const track = state.queue[state.index]
+  if (track) openPlaylistDialog(track)
+})
 $('#queue-toggle').addEventListener('click', () => toggleQueue())
 $('#queue-close').addEventListener('click', () => toggleQueue(false))
 $('#now-queue').addEventListener('click', () => {
