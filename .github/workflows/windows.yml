@@ -1,0 +1,43 @@
+name: Windows build
+
+on:
+  push:
+  workflow_dispatch:
+
+# Публикация релиза.
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Установщик и портативная версия
+        run: |
+          npm ci
+          npm run dist:win
+
+      - name: Версия из package.json
+        id: version
+        shell: bash
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Релиз, а не артефакт: его видно на странице Releases, и он лежит, пока его не удалят.
+      # Пуш без смены версии перезаливает файлы того же релиза.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Cloudwave ${{ steps.version.outputs.tag }}
+          body: |
+            `Cloudwave-Setup-*.exe` — установщик, `Cloudwave-*-portable.exe` — без установки.
+            Подписи нет: SmartScreen → «Подробнее» → «Выполнить в любом случае».
+          files: dist/*.exe
+          overwrite_files: true
+

@@ -3,3 +3,4 @@ mobile/www/
 mobile/ios/
 pwa/dist/
 *.log
+dist/

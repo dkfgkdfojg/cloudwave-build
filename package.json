@@ -1,0 +1,73 @@
+{
+  "name": "cloudwave",
+  "version": "0.2.0",
+  "description": "Десктопный плеер для SoundCloud",
+  "main": "main.js",
+  "desktopName": "cloudwave.desktop",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\""
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "hls.js": "^1.7.3"
+  },
+  "devDependencies": {
+    "electron": "^43.7.0",
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.56.1"
+  },
+  "optionalDependencies": {
+    "mpris-service": "^2.1.2"
+  },
+  "author": "Cloudwave",
+  "build": {
+    "appId": "com.cloudwave.app",
+    "productName": "Cloudwave",
+    "files": [
+      "main.js",
+      "preload.js",
+      "discord.js",
+      "index.html",
+      "renderer.js",
+      "style.css",
+      "icon.png",
+      "icon.svg",
+      "tray.png",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/{mpris-service,dbus-next,abstract-socket,usocket}/**"
+    ],
+    "win": {
+      "icon": "icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "shortcutName": "Cloudwave",
+      "artifactName": "Cloudwave-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Cloudwave-${version}-portable.${ext}"
+    },
+    "npmRebuild": false
+  }
+}

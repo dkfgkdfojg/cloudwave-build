@@ -1509,6 +1509,13 @@ body.is-paused .now-backdrop img { animation-play-state: paused; }
 :root[data-theme="glass"] :is(.btn, .chip, .icon-btn:hover) { background: oklch(1 0 0 / 0.1); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.2); }
 :root[data-theme="glass"] :is(.card .art, .row-art, .hero-art) { box-shadow: 0 12px 30px -12px oklch(0 0 0 / .6), inset 0 0 0 1px oklch(1 0 0 / .12); }
 
+/* Windows: под окном нет размытия Hyprland, полупрозрачный фон дал бы просвечивающий рабочий стол. */
+.win body { background: oklch(from var(--bg) l c h / 1); }
+:root[data-theme="glass"].win body { background:
+  radial-gradient(70% 55% at 15% 0%, oklch(from var(--accent-src) 0.55 0.16 h / .55), transparent 70%),
+  radial-gradient(60% 50% at 95% 100%, oklch(from var(--accent-src) 0.5 0.15 calc(h + 70) / .45), transparent 70%),
+  oklch(from var(--bg) l c h / 1); }
+
 /* ---------- iPhone: производительность ---------- */
 
 /* Прозрачный фон окна нужен только размытию Hyprland; на iPhone он лишь заставляет смешивать слои. */

@@ -5,6 +5,9 @@ const audio = sc.createAudio?.() ?? $('#audio')
 // На iPhone композитинг дорогой: класс включает облегчённые стили (см. .native в style.css).
 const native = Boolean(window.Capacitor)
 document.documentElement.classList.toggle('native', native)
+// На Windows окно непрозрачное (размытия под ним нет), см. .win в style.css.
+const windows = sc.platform === 'win32'
+document.documentElement.classList.toggle('win', windows)
 // PWA в Safari на iPhone — тоже iOS: звук, пропущенный через Web Audio, там замолкает при блокировке экрана.
 const ios = native || /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1)
 const main = $('#main')
@@ -2592,6 +2595,16 @@ function syncMpris(seeked = false) {
     liked: state.likedIds.has(track.id),
     seeked,
   })
+  // На Windows MPRIS нет: медиаклавиши и плашку громкости с обложкой даёт Media Session Chromium.
+  if (windows) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: track.user.username,
+      album: state.context?.label ?? '',
+      artwork: [{ src: cover(track, 't500x500'), sizes: '500x500' }],
+    })
+    navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing'
+  }
 }
 
 function markCurrent() {
@@ -3596,6 +3609,12 @@ const mediaActions = {
   },
 }
 sc.onMedia((action, value) => mediaActions[action](value))
+if (windows) {
+  for (const [action, handler] of Object.entries({ play: 'play', pause: 'pause', stop: 'stop', nexttrack: 'next', previoustrack: 'previous' })) {
+    navigator.mediaSession.setActionHandler(action, () => mediaActions[handler]())
+  }
+  navigator.mediaSession.setActionHandler('seekto', details => mediaActions.seekTo(details.seekTime))
+}
 
 const savedVolume = Number(localStorage.getItem('volume') ?? 80)
 setRange($('#volume'), savedVolume)
