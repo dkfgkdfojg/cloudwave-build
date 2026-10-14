@@ -1,0 +1,14 @@
+{
+  "name": "discord-rpc-lite",
+  "version": "1.0.0",
+  "description": "Discord Rich Presence для Node.js без зависимостей: любая активность на Windows, Linux и macOS",
+  "main": "index.js",
+  "type": "commonjs",
+  "license": "MIT",
+  "keywords": ["discord", "rpc", "rich-presence", "activity"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "example": "node example.js"
+  }
+}
